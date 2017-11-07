@@ -1,0 +1,289 @@
+# Class specification and constructors for the simulation class
+
+# Copyright 2012 Finlay Scott and Julia Blanchard. 
+# Distributed under the GPL 2 or later
+# Maintainer: Finlay Scott, CEFAS. finlay.scott@cefas.co.uk
+# Expanded to include temperature by 
+# Phoebe.Woodworth-Jefcoats@noaa.gov
+# August 2017
+# Expanded to include input plantkon abundances by
+# Phoebe.Woodworth-Jefcoats@noaa.gov
+# October 2017
+
+# Hackiness to get past the 'no visible binding ... ' warning when running check
+utils::globalVariables(c("lm"))
+
+# Validity check
+valid_MizerSim_NPAC <- function(object){
+	errors <- character()
+	validObject(object@params)
+	# array dimensions
+	if(length(dim(object@n)) != 3){
+		msg <- "n slot must have three dimensions"
+		errors <- c(errors, msg)
+	}
+	if(length(dim(object@effort)) != 2){
+		msg <- "effort slot must have two dimensions"
+		errors <- c(errors, msg)
+	}
+	if(length(dim(object@ocean_temp)) != 2){ # PW
+		msg <- "ocean_temp slot must have two dimension" # PW
+		errors <- c(errors, msg) # PW
+	} # PW
+	if(length(dim(object@n_pp)) != 2){
+		msg <- "n_pp slot must have two dimensions"
+		errors <- c(errors, msg)
+	}
+	if(length(dim(object@n_plank)) != 2){ # PW
+		msg <- "n_plank slot must have two dimensions" # PW
+		errors <- c(errors, msg) # PW
+	} # PW
+	# Check time dimension is good - size, dim name, and names
+	if(!all(c(dim(object@n)[1]-1,dim(object@n_pp)[1]-1,dim(object@ocean_temp)[1],dim(object@n_plank[1])) == dim(object@effort)[1])){ # PW
+		msg <- "First dimension of effort, ocean_temp, n_plank, n and n_pp slots must be the same length (n and n_pp are + 1 longer)" # PW
+		errors <- c(errors, msg)
+	}
+	if(!all(c(names(dimnames(object@n))[1], names(dimnames(object@n_pp))[1], names(dimnames(object@effort))[1], names(dimnames(object@ocean_temp))[1], names(dimnames(object@n_plank))[1]) == "time")){ # PW
+		msg <- "First dimension of effort, ocean_temp, n, n_plank, and n_pp slots must be called 'time'" # PW
+		errors <- c(errors, msg)
+	}
+	if(!all(c(names(dimnames(object@n))[1], names(dimnames(object@n_pp))[1], names(dimnames(object@ocean_temp))[1], names(dimnames(object@n_plank))[1]) == # PW
+		names(dimnames(object@effort))[1])){
+		msg <- "First dimension of effort, ocean_temp, n, and n_pp slots must have the same names" # PW
+		errors <- c(errors, msg)
+	}
+	# species dimension of n
+	if(dim(object@n)[2] != dim(object@params@psi)[1]){
+		msg <- "Second dimension of n slot must have same length as the species names in the params slot"
+		errors <- c(errors, msg)
+	}
+	if(names(dimnames(object@n))[2] != "sp"){
+		msg <- "Second dimension of n slot must be called 'sp'"
+		errors <- c(errors, msg)
+	}
+	if(!all(names(dimnames(object@n))[2] == names(dimnames(object@params@psi))[1])){
+		msg <- "Second dimension of n slot must have same species names as in the params slot"
+		errors <- c(errors, msg)
+	}
+	# w dimension of n
+	if(dim(object@n)[3] != length(object@params@w)){
+		msg <- "Third dimension of n slot must have same length as w in the params slot"
+		errors <- c(errors, msg)
+	}
+	if(names(dimnames(object@n))[3] != "w"){
+		msg <- "Third dimension of n slot must be called 'w'"
+		errors <- c(errors, msg)
+	}
+	if(!all(names(dimnames(object@n))[3] == names(dimnames(object@params@psi))[2])){
+		msg <- "Third dimension of n slot must have same size names as in the params slot"
+		errors <- c(errors, msg)
+	}
+	# w dimension of n_pp
+	if(dim(object@n_pp)[2] != length(object@params@w_full)){
+		msg <- "Second dimension of n_pp slot must have same length as w_full in the params slot"
+		errors <- c(errors, msg)
+	}
+	if(names(dimnames(object@n_pp))[2] != "w"){
+		msg <- "Second dimension of n_pp slot must be called 'w'"
+		errors <- c(errors, msg)
+	}
+	if(!all(dimnames(object@n_pp)$w == names(object@params@rr_pp))){
+		msg <- "Second dimension of n_pp slot must have same size names as rr_pp in the params slot"
+		errors <- c(errors, msg)
+	}
+	# w dimension of n_plank (PW)
+	if(dim(object@n_plank)[2] != (length(object@params@w_full))){ # PW
+		msg <- "Second dimension of n_plank slot must have same length as w_fullin the params slot" # PW
+		errors <- c(errors, msg) # PW
+	} # PW
+	if(names(dimnames(object@n_plank))[2] != "w"){ # PW
+		msg <- "Second dimension of n_plank slot must be called 'w'" # PW
+		errors <- c(errors, msg) # PW
+	}
+	if(!all(dimnames(object@n_plank)$w == names(object@params@rr_pp))){ # PW
+		msg <- "Second dimension of n_plank slot must have same size names as plankton rr_pp in the params slot" # PW
+		errors <- c(errors, msg) # PW
+	} # PW
+	# gear dimension of effort
+	if(dim(object@effort)[2] != dim(object@params@catchability)[1]){
+		msg <- "Second dimension of effort slot must have same number of gears as in the params slot"
+		errors <- c(errors, msg)
+	}
+	if(names(dimnames(object@effort))[2] != "gear"){
+		msg <- "Second dimension of effort slot must be called 'gear'"
+		errors <- c(errors, msg)
+	}
+	if(!all(names(dimnames(object@effort))[2] == names(dimnames(object@params@catchability)[1]))){
+		msg <- "Second dimension of effort slot must have same gear names as in the params slot"
+		errors <- c(errors, msg)
+	}
+	# realm dimension of ocean_temp (PW)
+	if(dim(object@ocean_temp)[2] != dim(object@params@exposure)[1]){ # PW
+		msg <- "Second dimension of ocean_temp slot must have the same number of realms as in the params slot" # PW
+		errors <- c(errors, msg) # PW
+	} # PW
+	if(names(dimnames(object@ocean_temp))[2] != "realm"){ # PW
+		msg <- "Second dimension of ocean_temp slot must be called 'realm'" # PW
+		errors <- c(errors, msg) # PW
+	} # PW
+	if(!all(names(dimnames(object@ocean_temp))[2] == names(dimnames(object@params@exposure)[1]))){ # PW
+		msg <- "Second dimension of ocean_temp slot must have same realms names as in the params slot" # PW
+		errors <- c(errors, msg) # PW
+	} # PW
+	if (length(errors) == 0) TRUE else errors
+}
+
+# Soundtrack: Yob - Quantum Mystic
+
+#' MizerSim_NPAC
+#' 
+#' A class that holds the results of projecting a \linkS4class{MizerParams_NPAC}
+#' object through time.
+#' 
+#' \code{MizerSim_NPAC} objects are created by using the \code{\link{project_NPAC}} method
+#' on an object of type \code{MizerParams_NPAC}.
+#' 
+#' There are several plotting methods available to explore the contents of a
+#' \code{MizerSim_NPAC} object. See the package vignette for more details.
+#' 
+#' @slot params An object of type \linkS4class{MizerParams_NPAC}.
+#' @slot n Array that stores the projected community population abundances by
+#'   time, species and size
+#' @slot effort Array that stores the fishing effort through time by time and
+#'   gear
+#' @slot ocean_temp Array that stores the ocean temperature through time by
+#'   time and realm (PW)
+#' @slot n_pp Array that stores the projected background population by time and
+#'   size
+#' 
+#' @seealso \code{\link{project_NPAC}} \code{\link{MizerParams_NPAC}}
+#' @export
+setClass(
+	"MizerSim_NPAC",
+	representation(
+		params = "MizerParams_NPAC",
+		n = "array",
+		effort = "array",
+		ocean_temp = "array", # PW
+		n_pp = "array",
+		n_plank = "array" # PW
+	),
+	prototype = prototype(
+		params = new("MizerParams_NPAC"),
+		n = array(
+			NA,dim = c(1,1,1), dimnames = list(time = NULL, sp = NULL, w = NULL)
+		),
+		effort = array(
+			NA,dim = c(1,1), dimnames = list(time = NULL, gear = NULL)
+		),
+		ocean_temp = array( # PW
+			NA,dim = c(1,1), dimnames = list(time = NULL, realm = NULL) # PW
+		), # PW
+		n_pp = array(
+			NA,dim = c(1,1), dimnames = list(time = NULL, w = NULL)
+		),
+		n_plank = array( # PW
+			NA,dim = c(1,1), dimnames = list(time = NULL, w = NULL) # PW
+		) # PW
+	),
+	validity = valid_MizerSim_NPAC
+)
+
+setValidity("MizerSim_NPAC", valid_MizerSim_NPAC)
+remove(valid_MizerSim_NPAC)
+
+
+# Constructors
+
+#' Constructor for the \code{MizerSim_NPAC} class
+#' 
+#' A constructor for the \code{MizerSim_NPAC} class. This is used by the
+#' \code{project_NPAC} method to create \code{MizerSim_NPAC} objects of the right
+#' dimensions. It is not necessary for users to use this constructor.
+#' 
+#' @param object a \linkS4class{MizerParams_NPAC} object
+#' @param t_dimnames Numeric vector that is used for the time dimensions of the
+#'   slots. Default = NA.
+#' @param t_max The maximum time step of the simulation. Only used if t_dimnames
+#'   = NA. Default value = 100.
+#' @param t_save How often should the results of the simulation be stored. Only
+#'   used if t_dimnames = NA. Default value = 1.
+#' @param ... Other arguments (currently not used).
+#' 
+#' @return An object of type \linkS4class{MizerSim_NPAC}
+#' @seealso \code{\link{project_NPAC}} \linkS4class{MizerParams_NPAC}
+#'   \linkS4class{MizerSim_NPAC}
+#' @export
+#' @examples
+#' \dontrun{
+#' data(NS_species_params_gears_NPAC)
+#' data(inter_NPAC)
+#' params <- MizerParams_NPAC(NS_species_params_gears_NPAC, inter_NPAC)
+#' sim <- project_NPAC(params)
+#' }
+setGeneric('MizerSim_NPAC', function(object, ...)
+	standardGeneric('MizerSim_NPAC'))
+
+#' MizerSim_NPAC constructor taking only a \code{MizerParams_NPAC} object.
+#' @rdname MizerSim_NPAC
+setMethod('MizerSim_NPAC', signature(object='MizerParams_NPAC'),
+	function(object, t_dimnames = NA, t_max = 100, t_save=1){
+		# If the dimnames for the time dimension not passed in, calculate them
+		# from t_max and t_save
+		if (any(is.na(t_dimnames))){
+			if((t_max %% t_save) != 0)
+				stop("t_max must be divisible by t_save with no remainder")
+			t_dimnames <- seq(from = t_save, to = t_max, by = t_save)
+		}
+		if (is.character(t_dimnames)){
+			stop("The t_dimnames argument must be numeric.")
+		}
+		no_sp <- nrow(object@species_params)
+		species_names <- dimnames(object@psi)$sp
+		no_w <- length(object@w)
+		w_names <- dimnames(object@psi)$w
+		t_dimnames_n <-
+			c(t_dimnames[1] - (t_dimnames[2] - t_dimnames[1]),t_dimnames) 
+			# N is 1 bigger because it holds the initial population
+		t_dim_n <- length(t_dimnames_n) 
+		t_dim_effort <- length(t_dimnames)
+		t_dim_ocean_temp <- length(t_dimnames) # PW
+		t_dim_n_plank <- length(t_dimnames) # PW
+		array_n <- array(NA, dim = c(t_dim_n, no_sp, no_w), 
+						 dimnames = list(time = t_dimnames_n, 
+						 				 sp = species_names, w = w_names))
+		
+		no_gears <- dim(object@selectivity)[1]
+		gear_names <- dimnames(object@selectivity)$gear
+		array_effort <- array(NA, dim = c(t_dim_effort, no_gears), 
+							dimnames = list(time = t_dimnames, 
+											gear = gear_names))
+
+		no_realms <- dim(object@ontogenetic_migration)[1] # PW
+		realm_names <- dimnames(object@ontogenetic_migration)$realm # PW
+		array_ocean_temp <- array(NA, dim = c(t_dim_ocean_temp, no_realms), # PW
+								dimnames = list(time = t_dimnames, # PW
+												realm = realm_names)) # PW
+		
+		no_w_full <- length(object@w_full)
+		w_full_names <- names(object@rr_pp)
+		array_n_pp <- array(NA, dim = c(t_dim_n, no_w_full), 
+							dimnames = list(time=t_dimnames_n, 
+											w = w_full_names))
+											
+		no_n_plank <- length(object@w_full) # PW
+		w_plank_names <- names(object@rr_pp) # PW
+		array_n_plank <- array(NA, dim = c(t_dim_n_plank, no_n_plank), # PW
+								dimnames = list(time=t_dimnames, # PW
+												w = w_plank_names)) # PW
+
+		sim <- new('MizerSim_NPAC',
+				n = array_n, 
+				effort = array_effort,
+				ocean_temp = array_ocean_temp,
+				n_pp = array_n_pp,
+				n_plank = array_n_plank,
+				params = object)
+		return(sim)
+		}
+)
