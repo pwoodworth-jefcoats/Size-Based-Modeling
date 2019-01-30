@@ -1,0 +1,31 @@
+Package: therMizer
+Title: Mizer With The Effects Of Temperature Included
+Version: 0.0.0.9000
+Authors@R: person("Phoebe", "Woodworth-Jefcoats", email = "Phoebe.Woodworth-Jefcoats@noaa.gov", role = c("aut", "cre"))
+Description: This package builds upon the mizer package.  It incorporates
+    temperature into metabolism and encounter rate.  It also includes code
+    to allow the background resource to be input at each time step.
+Depends: R (>= 3.3.2)
+License: GPL-3
+Encoding: UTF-8
+LazyData: true
+Imports:
+    ggplot2,
+    methods,
+    plyr,
+    reshape2
+Suggests:
+    roxygen2,
+    testthat
+Collate:
+    'therMizerParams-class.R'
+    'therMizerSim-class.R'
+    'selectivity_funcs_therMizer.R'
+    'project_therMizer.R'
+    'help_therMizer.R'
+    'project_methods_therMizer.R'
+    'summary_methods_therMizer.R'
+    'plots_therMizer.R'
+    'wrapper_functions_therMizer.R'
+    'data_therMizer.R'
+RoxygenNote: 6.0.1
