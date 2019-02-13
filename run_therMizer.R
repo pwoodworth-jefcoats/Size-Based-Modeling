@@ -4,7 +4,7 @@
 # Written by Phoebe.Woodworth-Jefcoats@noaa.gov, January 2019
 
 # The full package structure is included, but you should run this script from:
-# therMizer/R
+# /R (folder in this repository)
 
 # Load devtools (because the therMizer package is still in development)
 library(devtools)
