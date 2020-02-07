@@ -55,8 +55,8 @@ valid_therMizerParams <- function(object) {
 	if(!all(c(
 		length(dim(object@pred_kernel)),
 		length(dim(object@selectivity)),
-		length(dim(object@ontogenetic_migration))) == 3)){  
-			msg <- "pred_kernel, selectivity, and ontogenetic_migration must be three dimensions" 
+		length(dim(object@vertical_migration))) == 3)){  
+			msg <- "pred_kernel, selectivity, and vertical_migration must be three dimensions" 
 			errors <- c(errors, msg)
 	}
 	# Check number of species is equal across relevant slots
@@ -69,12 +69,12 @@ valid_therMizerParams <- function(object) {
 		dim(object@pred_kernel)[1],
 		dim(object@selectivity)[2],
 		dim(object@catchability)[2],
-		dim(object@ontogenetic_migration)[2], 
+		dim(object@vertical_migration)[2], 
 		dim(object@exposure)[2], 
 		dim(object@interaction)[1],
 		dim(object@interaction)[2]) == 
 			dim(object@species_params)[1])){
-			msg <- "The number of species in the model must be consistent across the species_params, psi, intake_max, search_vol, activity, pred_kernel, interaction (dim 1), selectivity, catchability, ontogenetic_migration, exposure, and interaction (dim 2) slots" 
+			msg <- "The number of species in the model must be consistent across the species_params, psi, intake_max, search_vol, activity, pred_kernel, interaction (dim 1), selectivity, catchability, vertical_migration, exposure, and interaction (dim 2) slots" 
 			errors <- c(errors, msg)
 	}
 	# Check number of size groups
@@ -86,9 +86,9 @@ valid_therMizerParams <- function(object) {
 		dim(object@std_metab)[2],
 		dim(object@pred_kernel)[2],
 		dim(object@selectivity)[3],
-		dim(object@ontogenetic_migration)[3]) == 
+		dim(object@vertical_migration)[3]) == 
 			length_w)){
-			msg <- "The number of size bins in the model must be consistent across the w, psi, intake_max, search_vol, activity, pred_kernel (dim 2), selectivity, and ontogenetic_migration (dim 3) slots" 
+			msg <- "The number of size bins in the model must be consistent across the w, psi, intake_max, search_vol, activity, pred_kernel (dim 2), selectivity, and vertical_migration (dim 3) slots" 
 			errors <- c(errors, msg)
 	}
 	# Check number of full spectrum size groups
@@ -102,8 +102,8 @@ valid_therMizerParams <- function(object) {
 		errors <- c(errors, msg)
 	}
 	# Check number of realms 
-	if(!isTRUE(all.equal(dim(object@ontogenetic_migration)[1], dim(object@exposure)[1]))){ 
-		msg <- "The number of oceanic realms must be consistent across the ontogenetic_migration and exposure (dim 1) slots" 
+	if(!isTRUE(all.equal(dim(object@vertical_migration)[1], dim(object@exposure)[1]))){ 
+		msg <- "The number of oceanic realms must be consistent across the vertical_migration and exposure (dim 1) slots" 
 		errors <- c(errors, msg) 
 	} 
 	# Check names of dimnames of arrays
@@ -117,9 +117,9 @@ valid_therMizerParams <- function(object) {
 		names(dimnames(object@pred_kernel))[1],
 		names(dimnames(object@selectivity))[2],
 		names(dimnames(object@catchability))[2],
-		names(dimnames(object@ontogenetic_migration))[2], 
+		names(dimnames(object@vertical_migration))[2], 
 		names(dimnames(object@exposure))[2]) == "sp")){ 
-			msg <- "Name of first dimension of psi, intake_max, search_vol, std_metab, activity and pred_kernel and the second dimension of selectivity, catchability, ontogenetic_migration, and exposure must be 'sp'" 
+			msg <- "Name of first dimension of psi, intake_max, search_vol, std_metab, activity and pred_kernel and the second dimension of selectivity, catchability, vertical_migration, and exposure must be 'sp'" 
 			errors <- c(errors, msg)
 		}
 	#interaction dimension names
@@ -139,8 +139,8 @@ valid_therMizerParams <- function(object) {
 		names(dimnames(object@std_metab))[2],
 		names(dimnames(object@activity))[2],
 		names(dimnames(object@selectivity))[3],
-		names(dimnames(object@ontogenetic_migration))[3]) == "w")){ 
-			msg <- "Name of second dimension of psi, intake_max, search_vol, std_metab, activity and third dimension of selectivity and ontogenetic_migration must be 'w'" 
+		names(dimnames(object@vertical_migration))[3]) == "w")){ 
+			msg <- "Name of second dimension of psi, intake_max, search_vol, std_metab, activity and third dimension of selectivity and vertical_migration must be 'w'" 
 			errors <- c(errors, msg)
 		}
 	if(names(dimnames(object@pred_kernel))[2] != "w_pred"){
@@ -158,9 +158,9 @@ valid_therMizerParams <- function(object) {
 		errors <- c(errors, msg)
 	}
 	if(!all(c( 
-		  names(dimnames(object@ontogenetic_migration))[1], 
+		  names(dimnames(object@vertical_migration))[1], 
 		  names(dimnames(object@exposure))[1]) == "realm")){ 
-		msg <- "Name of the first dimension of ontogenetic_migration and exposure must be 'realm'" 
+		msg <- "Name of the first dimension of vertical_migration and exposure must be 'realm'" 
 		errors <- c(errors, msg)
 	}
 	        
@@ -175,12 +175,12 @@ valid_therMizerParams <- function(object) {
 		dimnames(object@pred_kernel)[[1]],
 		dimnames(object@selectivity)[[2]],
 		dimnames(object@catchability)[[2]],
-		dimnames(object@ontogenetic_migration)[[2]], 
+		dimnames(object@vertical_migration)[[2]], 
 		dimnames(object@exposure)[[2]], 
 		dimnames(object@interaction)[[1]],
 		dimnames(object@interaction)[[2]]) ==
 			object@species_params$species)){
-			msg <- "The species names of species_params, psi, intake_max, search_vol, std_metab, activity, pred_kernel, selectivity, catchability, ontogenetic_migration, exposure, and interaction must all be the same" 
+			msg <- "The species names of species_params, psi, intake_max, search_vol, std_metab, activity, pred_kernel, selectivity, catchability, vertical_migration, exposure, and interaction must all be the same" 
 			errors <- c(errors, msg)
 	}
 	# Check dimnames of w
@@ -192,8 +192,8 @@ valid_therMizerParams <- function(object) {
 		dimnames(object@activity)[[2]],
 		dimnames(object@pred_kernel)[[2]],
 		dimnames(object@selectivity)[[3]]) == 
-			dimnames(object@ontogenetic_migration)[[3]])){ 
-			msg <- "The size names of psi, intake_max, search_vol, std_metab, activity, pred_kernel, selectivity, and ontogenetic_migration must all be the same" 
+			dimnames(object@vertical_migration)[[3]])){ 
+			msg <- "The size names of psi, intake_max, search_vol, std_metab, activity, pred_kernel, selectivity, and vertical_migration must all be the same" 
 			errors <- c(errors, msg)
 	}
 	# Check dimnames of gear
@@ -206,8 +206,8 @@ valid_therMizerParams <- function(object) {
 	# Check dimnames of realm 
 	if(!isTRUE(all.equal( 
 		dimnames(object@exposure)[[1]], 
-		dimnames(object@ontogenetic_migration)[[1]]))){ 
-			msg <- "The realm names of ontogenetic_migration and exposure must all be the same" 
+		dimnames(object@vertical_migration)[[1]]))){ 
+			msg <- "The realm names of vertical_migration and exposure must all be the same" 
 			errors <- c(errors, msg) 
 	} 
 	# Check the vector slots
@@ -299,7 +299,7 @@ valid_therMizerParams <- function(object) {
 #'   each species by gear and species size
 #' @slot catchability An array (gear x species) that holds the catchability of
 #'   each species by each gear
-#' @slot ontogenetic_migration An array (realm x species x w) that holds the 
+#' @slot vertical_migration An array (realm x species x w) that holds the 
 #'   proportion of time each species spends in a given realm by size 
 #' @slot exposure An array (realm x species) that holds the exposure of each 
 #'  species by each realm 
@@ -338,7 +338,7 @@ setClass(
 		srr = "function",
 		selectivity = "array",
 		catchability = "array",
-		ontogenetic_migration = "array", 
+		vertical_migration = "array", 
 		exposure = "array" 
 	),
 	prototype = prototype(
@@ -369,7 +369,7 @@ setClass(
 		catchability = array(
 			NA, dim = c(1,1), dimnames = list(gear = NULL, sp = NULL)
 		),
-		ontogenetic_migration = array( 
+		vertical_migration = array( 
 			NA, dim = c(1,1,1), dimnames = list(realm = NULL, sp = NULL, w = NULL) 
 		), 
 		exposure = array( 
@@ -472,7 +472,8 @@ setGeneric('therMizerParams', function(object, interaction, ...)
 #' @rdname therMizerParams
 setMethod('therMizerParams', signature(object='numeric', interaction='missing'),
 	function(object, min_w = 0.001, max_w = max(object$w_inf)*1.1, no_w = 100, min_w_pp = 1e-14, no_w_pp = round(no_w)*0.3, species_names=1:object, gear_names=species_names, realm_names=species_names){ 
-		#args <- list(...)
+	
+			#args <- list(...)
 		
 		# Some checks
 		if (length(species_names) != object)
@@ -508,7 +509,7 @@ setMethod('therMizerParams', signature(object='numeric', interaction='missing'),
 		mat2 <- array(NA, dim=c(object,no_w,no_w_full), dimnames = list(sp=species_names,w_pred=signif(w,3), w_prey=signif(w_full,3)))
 		selectivity <- array(0, dim=c(length(gear_names), object, no_w), dimnames=list(gear=gear_names, sp=species_names, w=signif(w,3)))
 		catchability <- array(0, dim=c(length(gear_names), object), dimnames = list(gear=gear_names, sp=species_names))
-		ontogenetic_migration <- array(0, dim=c(length(realm_names), object, no_w), dimnames=list(realm=realm_names, sp=species_names, w=signif(w,3))) 
+		vertical_migration <- array(0, dim=c(length(realm_names), object, no_w), dimnames=list(realm=realm_names, sp=species_names, w=signif(w,3))) 
 		exposure <- array(0, dim=c(length(realm_names), object), dimnames = list(realm=realm_names, sp=species_names)) 
 		interaction <- array(1, dim=c(object,object), dimnames = list(predator = species_names, prey = species_names))
 		vec1 <- as.numeric(rep(NA, no_w_full))
@@ -532,7 +533,7 @@ setMethod('therMizerParams', signature(object='numeric', interaction='missing'),
 			w = w, dw = dw, w_full = w_full, dw_full = dw_full,
 			psi = mat1, intake_max = mat1, search_vol = mat1, activity = mat1, std_metab = mat1, pred_kernel = mat2,
 			selectivity=selectivity, catchability=catchability,
-			ontogenetic_migration=ontogenetic_migration, exposure=exposure, 
+			vertical_migration=vertical_migration, exposure=exposure, 
 			rr_pp = vec1, cc_pp = vec1, species_params = species_params,
 			interaction = interaction, srr = srr) 
 		return(res)
@@ -631,22 +632,31 @@ setMethod('therMizerParams', signature(object='data.frame', interaction='matrix'
 	}
 	# Determine temperature limits and values for scaling them
 	if(!("temp_min" %in% colnames(object))){ 
-		message("\tNote: No minimum temperature in species data frame so using 16.8.") 
+		message("\tNote: No temp_min column in species data frame so using 16.8.") 
 		object$temp_min <- 16.8 
 	} 
 	if(!("temp_max" %in% colnames(object))){ 
-		message("\tNote: No maximum temperature in species data frame so using 16.8.") 
+		message("\tNote: No temp_max column in species data frame so using 16.8.") 
 		object$temp_max <- 16.8 
 	} 
-	# See Woodworth-Jefcoats et al. in prep for information on determining the following three parameters.
+	# See Woodworth-Jefcoats et al. 2019 for information on determining the following three parameters.
 	if(!("encount_scale" %in% colnames(object))){ 
-		stop("\tNote: No value to scale the temperature effect on encounter rate in species data frame.  I need this value in order to proceed.") 
+		message("\tNote: No encount_scale column in species data frame so am using temp_min and temp_max to scale the temperature effect on encounter rate.")
+		for (indv in seq(1:length(object$temp_min))){
+			temperature <- seq(object$temp_min[indv], object$temp_max[indv], by=0.1)
+			all_possible_encount_scale_values <- (temperature) * (temperature - object$temp_min[indv]) * (object$temp_max[indv] - temperature)
+			object$encount_scale[indv] <- max(all_possible_encount_scale_values)
+			}
 	} 
 	if(!("metab_min" %in% colnames(object))){
-		stop("\tNote: No minimum value to scale the temperature effect on metabolism in species data frame.  I need this value in order to proceed.") 
+		message("\tNote: No metab_min column in species data frame so am using temp_min to scale the temperature effect on metabolism.")
+		object$metab_min <- (exp(25.22 - (0.63/((8.62e-5)*(273+object$temp_min))))) 
 	} 
 	if(!("metab_range" %in% colnames(object))){ 
-		stop("\tNote: No range value to scale the temperature effect on metabolism in species data frame.  I need this value in order to proceed") 
+		message("\tNote: No metab_range column in species data frame so am using temp_min and temp_max to scale the temperature effect on metabolism.") 
+		min_metab_value <- (exp(25.22 - (0.63/((8.62e-5)*(273+object$temp_min)))))
+		max_metab_value <- (exp(25.22 - (0.63/((8.62e-5)*(273+object$temp_max)))))
+		object$metab_range <- max_metab_value - min_metab_value
 	} 
 	
 		# Check essential columns: species (name), wInf, wMat, h, gamma, ks, beta, sigma 
@@ -753,14 +763,14 @@ setMethod('therMizerParams', signature(object='data.frame', interaction='matrix'
 		#params@species_params[,names(params@species_params) != "catchability"]
 		res@species_params <- res@species_params[,-which(names(res@species_params)=="catchability")]
 		
-		# Set temperature effect parameters: ontogenetic_migration and exposure 
+		# Set temperature effect parameters: vertical_migration and exposure
 		# At the moment, each species inhabits only 1 realm, so in species_params 
 		# there are the columns: realm_name and mig_func. 
 		# BEWARE! This routine assumes that each species is exposed to only one realm 
 		# So we can just go row by row through the species parameters 
 		# However, I hope to improve this in the future 
 		for (te in 1:nrow(object)){ 
-			# Do ontogenetic_migration first 
+			# Do vertical_migration first 
 			# get szzs 
 			szz <- names(formals(as.character(object[te,'mig_func']))) 
 			# lop off w as that is always the first argument of the migration functions 
@@ -772,12 +782,12 @@ setMethod('therMizerParams', signature(object='data.frame', interaction='matrix'
 			rap <- c(w=list(res@w),as.list(object[te,szz])) 
 			mig <- do.call(as.character(object[te,'mig_func']), args=rap) 
 			# Dump mig in the right place 
-			res@ontogenetic_migration[as.character(object[te,'realm']), te, ] <- mig 
+			res@vertical_migration[as.character(object[te,'realm']), te, ] <- mig 
 			# Now do exposure 
 			res@exposure[as.character(object[te,'realm']), te] <- object[te,"exposure"]
 		} 
 		
-		# Remove exposure from species data.frame, now storedin slot 
+		# Remove exposure from species data.frame, now stored in slot 
 		res@species_params <- res@species_params[,-which(names(res@species_params)=="exposure")]
 		
 		return(res)
