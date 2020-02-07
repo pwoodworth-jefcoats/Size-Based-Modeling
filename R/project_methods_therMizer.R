@@ -3,7 +3,7 @@
 # Copyright 2012 Finlay Scott and Julia Blanchard. Distributed under the GPL 2 or later
 # Maintainer of mizer package: Finlay Scott, CEFAS
 
-# Modified to for therMizer by: Phoebe.Woodworth-Jefcoats@noaa.gov
+# Modified to therMizer by: Phoebe.Woodworth-Jefcoats@noaa.gov
 # Added temperature effect functions
 
 # Calculate the amount of food exposed to each predator by predator size
@@ -104,6 +104,40 @@ setMethod('getPhiPrey', signature(object='therMizerParams', n = 'matrix', n_pp='
 setGeneric('getTempEffectRealmEncount', function(object, ocean_temp, ...) 
 	standardGeneric('getTempEffectRealmEncount')) 
 
+# Original code below
+# #' \code{getTempEffectRealmEncount} method for \code{therMizerParams} object with constant temperature. 
+# #' @rdname getTempEffectRealmEncount
+# # Ocean temperature is a single value or a numeric vector 
+# # Ocean temperature has no time dimension 
+# setMethod('getTempEffectRealmEncount', signature(object='therMizerParams', ocean_temp='numeric'), 
+	# function(object, ocean_temp, ...){ 
+		# no_realm <- dim(object@exposure)[1] 
+		# # If a single value, just repeat it for all realms 
+		# if(length(ocean_temp) == 1) 
+			# ocean_temp <- rep(ocean_temp, no_realm) 
+		# if(length(ocean_temp) != no_realm) 
+			# stop("Ocean_temp must be a single value or a vector as long as the number of realms\n") 
+		# unscaled_temp_effect <- (ocean_temp) * (ocean_temp - object@species_params$temp_min) * (object@species_params$temp_max - ocean_temp) 
+		# scaled_temp_effect <- unscaled_temp_effect / object@species_params$encount_scale 
+		
+		# # Set temperature effect to 0 if temperatures are outside thermal tolerance limits 
+		# above_max <- which(ocean_temp > object@species_params$temp_max) 
+		# below_min <- which(ocean_temp < object@species_params$temp_min) 
+		
+		# if(length(above_max) > 0) 
+			# scaled_temp_effect[above_max] = 0 
+		
+		# if(length(below_min) > 0) 
+			# scaled_temp_effect[below_min] = 0 
+		
+		# out <- object@vertical_migration 
+		# out[] <- scaled_temp_effect * c(object@exposure) * c(object@vertical_migration) 
+		
+		# return(out) 
+	# } 
+# ) 
+# Original code above
+# This code allows species to be exposed to multiple realms
 #' \code{getTempEffectRealmEncount} method for \code{therMizerParams} object with constant temperature. 
 #' @rdname getTempEffectRealmEncount
 # Ocean temperature is a single value or a numeric vector 
@@ -116,25 +150,42 @@ setMethod('getTempEffectRealmEncount', signature(object='therMizerParams', ocean
 			ocean_temp <- rep(ocean_temp, no_realm) 
 		if(length(ocean_temp) != no_realm) 
 			stop("Ocean_temp must be a single value or a vector as long as the number of realms\n") 
-		unscaled_temp_effect <- (ocean_temp) * (ocean_temp - object@species_params$temp_min) * (object@species_params$temp_max - ocean_temp) 
-		scaled_temp_effect <- unscaled_temp_effect / object@species_params$encount_scale 
 		
-		# Set temperature effect to 0 if temperatures are outside thermal tolerance limits 
-		above_max <- which(ocean_temp > object@species_params$temp_max) 
-		below_min <- which(ocean_temp < object@species_params$temp_min) 
+		out <- object@vertical_migration
+		
+		for (r in seq(1,no_realm,1)){
+			unscaled_temp_effect <- (ocean_temp[r]) * (ocean_temp[r] - object@species_params$temp_min) * (object@species_params$temp_max - ocean_temp[r])
+			scaled_temp_effect <- unscaled_temp_effect / object@species_params$encount_scale
+			
+			# Set temperature effect to 0 if temperatures are outside thermal tolerance limits 
+		above_max <- which(ocean_temp[r] > object@species_params$temp_max) 
+		below_min <- which(ocean_temp[r] < object@species_params$temp_min) 
 		
 		if(length(above_max) > 0) 
 			scaled_temp_effect[above_max] = 0 
 		
 		if(length(below_min) > 0) 
-			scaled_temp_effect[below_min] = 0 
+			scaled_temp_effect[below_min] = 0
+			
+		# Set temperature effect to 0 if the temperature in any realm to which a species is exposed is outside thermal tolerance limits
+		no_sp <- dim(object@exposure)[2]
+		for  (s in seq(1,no_sp,1)){
+			habitat <- which(object@exposure[,s] > 0)
+			if(any(ocean_temp[habitat] > object@species_params$temp_max[s]))
+				scaled_temp_effect[s] = 0
+			if(any(ocean_temp[habitat] < object@species_params$temp_min[s]))
+				scaled_temp_effect[s] = 0
+		}
 		
-		out <- object@ontogenetic_migration 
-		out[] <- scaled_temp_effect * c(object@exposure) * c(object@ontogenetic_migration) 
+			
+		out[r,,] <- scaled_temp_effect * c(object@exposure[r,]) * c(object@vertical_migration[r,,]) 
+		
+		}
 		
 		return(out) 
 	} 
 ) 
+
 
 #' \code{getTempEffectRealmEncount} method for \code{therMizerParams} object with time-changing temp.
 #' @rdname getTempEffectRealmEncount
@@ -147,7 +198,7 @@ setMethod('getTempEffectRealmEncount',signature(object='therMizerParams', ocean_
 		# Make the output array- note that we put time as last dimention and then aperm before returning 
 		# This is because of the order of the values when we al the other getTempEffectRealm method 
 		# Fill it up by calling the other method and passing in each line of the ocean_temp matrix 
-		out <- array(NA, dim=c(dim(object@ontogenetic_migration), dim(ocean_temp)[1]), dimnames= c(dimnames(object@ontogenetic_migration), list(time = dimnames(ocean_temp)[[1]]))) 
+		out <- array(NA, dim=c(dim(object@vertical_migration), dim(ocean_temp)[1]), dimnames= c(dimnames(object@vertical_migration), list(time = dimnames(ocean_temp)[[1]]))) 
 		out[] <- apply(ocean_temp, 1, function(x) getTempEffectRealmEncount(object, x)) 
 		out <- aperm(out, c(4,1,2,3)) 
 	} 
@@ -189,7 +240,7 @@ setMethod('getTempEffectRealmEncount', signature(object='therMizerSim', ocean_te
 #'   of class \code{therMizerSim}, the output array has three dimensions (time x 
 #'   species x size). If the ocean_temp argument does not have a time dimension, the
 #'   output array has two dimensions (species x size).
-#' @note Here: temperature effect is determined from exposure x ontogenetic_migration
+#' @note Here: temperature effect is determined from exposure x vertical_migration
 #'   x ocean_temp. 
 #' 
 #' The \code{ocean_temp} argument is only used if a \code{therMizerParams} object is
@@ -220,7 +271,7 @@ setMethod('getTempEffectEncount', signature(object='therMizerParams', ocean_temp
 #' @rdname getTempEffectEncount
 setMethod('getTempEffectEncount', signature(object='therMizerParams', ocean_temp='matrix'), 
 	function(object, ocean_temp, ...){ 
-		tempEffectRealmEncount <- getTempEffectRealmEncount(object, ocean_temp, ...) 
+		tempEffectRealmEncount <- getTempEffectRealmEncount(object, ocean_temp, ...)
 		tempEffectEncount <- apply(tempEffectRealmEncount, c(1,3,4), sum) 
 		return(tempEffectEncount) 
 }) 
@@ -276,6 +327,40 @@ setMethod('getTempEffectEncount', signature(object='therMizerSim', ocean_temp='m
 setGeneric('getTempEffectRealmMetab', function(object, ocean_temp, ...) 
 	standardGeneric('getTempEffectRealmMetab')) 
 
+# Original Code Below
+# #' \code{getTempEffectRealmMetab} method for \code{therMizerParams} object with constant temperature. 
+# #' @rdname getTempEffectRealmMetab
+# # Ocean temperature is a single value or a numeric vector 
+# # Ocean temperature has no time dimension 
+# setMethod('getTempEffectRealmMetab', signature(object='therMizerParams', ocean_temp='numeric'), 
+	# function(object, ocean_temp, ...){ 
+		# no_realm <- dim(object@exposure)[1] 
+		# # If a single value, just repeat it for all realms 
+		# if(length(ocean_temp) == 1) 
+			# ocean_temp <- rep(ocean_temp, no_realm) 
+		# if(length(ocean_temp) != no_realm) 
+			# stop("Ocean_temp must be a single value or a vector as long as the number of realms\n") 
+		# unscaled_temp_effect <- (exp(25.22 - (0.63/((8.62e-5)*(273+ocean_temp))))) 
+		# scaled_temp_effect <- (unscaled_temp_effect - object@species_params$metab_min) / object@species_params$metab_range 
+		
+		# # Set temperature effect to 0 if temperatures are outside thermal tolerance limits 
+		# above_max <- which(ocean_temp > object@species_params$temp_max) 
+		# below_min <- which(ocean_temp < object@species_params$temp_min) 
+		
+		# if(length(above_max) > 0) 
+			# scaled_temp_effect[above_max] = 0 
+		
+		# if(length(below_min) > 0) 
+			# scaled_temp_effect[below_min] = 0 
+		
+		# out <- object@vertical_migration 
+		# out[] <- scaled_temp_effect * c(object@exposure) * c(object@vertical_migration) 
+
+		# return(out) 
+	# } 
+# ) 
+# Original Code Aboove
+# This code allows species to be explosed to multiple realms
 #' \code{getTempEffectRealmMetab} method for \code{therMizerParams} object with constant temperature. 
 #' @rdname getTempEffectRealmMetab
 # Ocean temperature is a single value or a numeric vector 
@@ -288,25 +373,41 @@ setMethod('getTempEffectRealmMetab', signature(object='therMizerParams', ocean_t
 			ocean_temp <- rep(ocean_temp, no_realm) 
 		if(length(ocean_temp) != no_realm) 
 			stop("Ocean_temp must be a single value or a vector as long as the number of realms\n") 
-		unscaled_temp_effect <- (exp(25.22 - (0.63/((8.62e-5)*(273+ocean_temp))))) 
-		scaled_temp_effect <- (unscaled_temp_effect - object@species_params$metab_min) / object@species_params$metab_range 
+			
+		out <- object@vertical_migration
 		
-		# Set temperature effect to 0 if temperatures are outside thermal tolerance limits 
-		above_max <- which(ocean_temp > object@species_params$temp_max) 
-		below_min <- which(ocean_temp < object@species_params$temp_min) 
+		for (r in seq(1,no_realm,1)){
+			unscaled_temp_effect <- (exp(25.22 - (0.63/((8.62e-5)*(273+ocean_temp[r])))))
+			scaled_temp_effect <- (unscaled_temp_effect - object@species_params$metab_min) / object@species_params$metab_range
+			
+			# Set temperature effect to 0 if temperatures are outside thermal tolerance limits 
+		above_max <- which(ocean_temp[r] > object@species_params$temp_max) 
+		below_min <- which(ocean_temp[r] < object@species_params$temp_min) 
 		
 		if(length(above_max) > 0) 
 			scaled_temp_effect[above_max] = 0 
 		
 		if(length(below_min) > 0) 
-			scaled_temp_effect[below_min] = 0 
-		
-		out <- object@ontogenetic_migration 
-		out[] <- scaled_temp_effect * c(object@exposure) * c(object@ontogenetic_migration) 
+			scaled_temp_effect[below_min] = 0
+			
+		# Set temperature effect to 0 if the temperature in any realm to which a species is exposed is outside thermal tolerance limits
+		no_sp <- dim(object@exposure)[2]
+		for  (s in seq(1,no_sp,1)){
+			habitat <- which(object@exposure[,s] > 0)
+			if(any(ocean_temp[habitat] > object@species_params$temp_max[s]))
+				scaled_temp_effect[s] = 0
+			if(any(ocean_temp[habitat] < object@species_params$temp_min[s]))
+				scaled_temp_effect[s] = 0
+		}
+			
+		out[r,,] <- scaled_temp_effect * c(object@exposure[r,]) * c(object@vertical_migration[r,,])
+			
+		}
 
 		return(out) 
 	} 
 ) 
+
 
 #' \code{getTempEffectRealmMetab} method for \code{therMizerParams} object with time-changing temp.
 #' @rdname getTempEffectRealmMetab
@@ -319,7 +420,7 @@ setMethod('getTempEffectRealmMetab',signature(object='therMizerParams', ocean_te
 		# Make the output array- note that we put time as last dimention and then aperm before returning 
 		# This is because of the order of the values when we al the other getTempEffectRealm method 
 		# Fill it up by calling the other method and passing in each line of the ocean_temp matrix 
-		out <- array(NA, dim=c(dim(object@ontogenetic_migration), dim(ocean_temp)[1]), dimnames= c(dimnames(object@ontogenetic_migration), list(time = dimnames(ocean_temp)[[1]]))) 
+		out <- array(NA, dim=c(dim(object@vertical_migration), dim(ocean_temp)[1]), dimnames= c(dimnames(object@vertical_migration), list(time = dimnames(ocean_temp)[[1]]))) 
 		out[] <- apply(ocean_temp, 1, function(x) getTempEffectRealmMetab(object, x)) 
 		out <- aperm(out, c(4,1,2,3)) 
 	} 
@@ -361,7 +462,7 @@ setMethod('getTempEffectRealmMetab', signature(object='therMizerSim', ocean_temp
 #'   of class \code{therMizerSim}, the output array has three dimensions (time x 
 #'   species x size). If the ocean_temp argument does not have a time dimension, the
 #'   output array has two dimensions (species x size).
-#' @note Here: temperature effect is determined from exposure x ontogenetic_migration
+#' @note Here: temperature effect is determined from exposure x vertical_migration
 #'   x ocean_temp. 
 #' 
 #' The \code{ocean_temp} argument is only used if a \code{therMizerParams} object is
