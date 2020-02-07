@@ -258,8 +258,8 @@ setMethod('therMizerSim', signature(object='therMizerParams'),
 							dimnames = list(time = t_dimnames, 
 											gear = gear_names))
 
-		no_realms <- dim(object@ontogenetic_migration)[1] 
-		realm_names <- dimnames(object@ontogenetic_migration)$realm 
+		no_realms <- dim(object@vertical_migration)[1] 
+		realm_names <- dimnames(object@vertical_migration)$realm 
 		array_ocean_temp <- array(NA, dim = c(t_dim_ocean_temp, no_realms), 
 								dimnames = list(time = t_dimnames, 
 												realm = realm_names)) 
