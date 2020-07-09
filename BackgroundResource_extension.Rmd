@@ -1,0 +1,188 @@
+---
+title: "Background extension"
+output:
+  html_document:
+    toc: yes
+    fig_width: 10
+    fig_height: 5
+---
+
+## Load libraries
+
+Mizer 2.0.1 updated at 23/05/2020 or later version is needed to use the background extension. 
+
+A. First and best option: download the most updated version of the package directly from GitHub using devtools::install_github("sizespectrum/mizer") 
+
+B. Second option: merge upstream master with your branch and upload code from local repository 
+
+```{r message=FALSE, warning=FALSE}
+
+rm(list=ls())
+
+# option A
+# devtools::install_github("sizespectrum/mizer") # run only once
+library(mizer)
+
+# option 2 
+# library(Jmisc)
+# path<-"/Users/nov017/R-projects/Mizer-trait/R"
+# sourceAll(path)
+
+```
+
+## Set up multispecies model
+
+All parameters are made up
+
+```{r message=FALSE, warning=FALSE}
+
+species_params = data.frame(species = c("pelagic", "benthic"), w_inf = c(100, 200), k_vb =c(0.2, 0.2), w_min = c(0.001, 0.001))
+
+# available PP to species 
+species_params$interaction_resource<-c(1,0.2)
+
+# create the param object
+# note: some def values are different from old mizer (e.g. kappa)
+params<-newMultispeciesParams(species_params, no_w = 200, kappa = 0.001)
+params@resource_params
+
+# run projections:
+sim<-project(params, t_max = 100, effort = 0)
+plot(sim)
+
+```
+
+## Add a second background spectrum to the Param object
+
+To create a new component, the background resource spectrum, you need to use setComponent(). See **extension.r** in Mizer package for a detailed description of this function and its arguments 
+
+In brief, setComponent (params, component, initial_value, dynamics_fun, encounter_fun, mort_fun, component_params)
+
+params = A MizerParams object  
+component = Name of the component  
+initial_value = Initial value of the component  
+dynamics_fun = Name of function to calculate value at the next time step  
+encounter_fun = Name of function to calculate contribution to encounter rate. Optional  
+mort_fun = Name of function to calculate contribution to the mortality rate. Optional  
+component_params = Named list of parameters needed by the component functions. Optional    
+
+### How it works 
+
+We need to specify our own functions (dynamics, encounter and mortality) for each background resource component we'd like to add. 
+
+This can be done in 6 steps:   
+
+1. Specify the background dynamics function  
+dynamics_fun = background_bb_semichemostat, which is the same as resource_semichemostat() in **resource_dynamics.r**, but uses newly defined rr_pp (here called rate) and cc_pp (here called capacity), and it includes the mortality function  
+
+```{r}
+
+background_bb_semichemostat <- function(params, n_other, rates, dt, ...) {
+    
+    # locate where (which params slot) the parameters needed for this function are stored 
+    component <- "background_bb"
+    c <- params@other_params[[component]] 
+    
+    # name of interaction parameter for this component in species_params
+    interaction_component <- paste0("interaction_", component)
+    interaction <- params@species_params[[interaction_component]]
+    
+    # Step 3: specify the background mortality function
+    mort <- as.vector(interaction  %*% rates$pred_rate)
+    
+    # specify the background dynamics function. This is the same as resource_semichemostat() - see above
+    tmp <- c$rate * c$capacity / (c$rate + mort) 
+    return(tmp - (tmp - n_other[[component]]) * exp(-(c$rate + mort) * dt))
+}
+
+```
+
+2. Specify the encounter function  
+encounter_fun = background_bb_encounter, which is same as mizerEncounter() in **project_methods.r**, but now n_pp is the sum of the 2 background spectra  
+
+```{r}
+
+background_bb_encounter <- function(params, n, n_pp, n_other, ...) {
+    mizerEncounter(params, n = n, n_pp = n_pp + n_other$background_bb, ...)
+}
+
+```
+
+3. Specify the mortality function  
+mort_fun = mort, which is the same as mizerResourceMort() in **project_methods.r**, but uses different interaction values (interaction_resource) and pred_rate. Mortality in this case is specified as part of background_bb_semichemostat(). For any other extensions you'd need something like: 
+
+```{r}
+
+# background_bb_mortality<-...mizerMortality()...
+
+```
+
+4. Set up parameters   
+Calcualate rate and capacity used in background_bb_semichemostat() and given kappa, lambda etc. for the bb spectrum
+
+```{r}
+
+kappa <- 0.001 
+lambda <- 2.05 
+r_pp <- 10
+n <- 0.666 
+w_pp_cutoff <- 10
+rate <- r_pp * params@w_full^(n - 1)
+capacity <- kappa * params@w_full^(-lambda)
+capacity[params@w_full > w_pp_cutoff] <- 0
+w_pp_min <- 1e-6 # set minimum size of new resource 
+capacity[params@w_full > w_pp_cutoff] <- 0
+
+# Set interaction species-background_bb - i.e. proportion available to each species.  
+# this new species param column needs to be named as "interaction_" + component name
+params@species_params$interaction_background_bb <- c(0,0.8)
+
+```
+
+5. Add components   
+Add the background bb resource spectrum to the params object using setComponent()
+
+```{r}
+
+params2 <- setComponent(params = params, component = "background_bb",
+                        initial_value = params@initial_n_pp, 
+                        dynamics_fun =  "background_bb_semichemostat",
+                        component_params = list(rate = rate, 
+                                                capacity = capacity))
+
+```
+
+6. Update the encounter function
+
+```{r}
+
+params2 <- setRateFunction(params2, "Encounter", "background_bb_encounter")
+
+```
+
+7. Update the mortality function   
+Mortality in this case is specified as part of background_bb_semichemostat() so you don't need to update this function. For any other extensions you'd need to run the line below: 
+
+```{r}
+
+# params2<-setRateFunction(params2, "Mortality", "background_bb_mortality")
+
+```
+
+## Run project() using the newly defined Param object 
+
+Params now includes a pp and a bb background spectrum 
+
+```{r message=FALSE}
+
+sim2 <- project(params2, t_max = 100, effort = 0) 
+plot(sim2)
+
+# check the community 
+# sim2@n_other[10,] # n background_bb at time step 10 
+
+```
+
+## Plot community with additional resource
+
+"to plot the results you will need to write your own plot function. You can of course use the built-in plot functions to get a ggplot2 object to which you then only need to add the extra stuff for your new components".
