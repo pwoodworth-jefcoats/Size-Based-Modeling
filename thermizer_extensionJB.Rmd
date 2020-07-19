@@ -79,7 +79,14 @@ times=0:500
 sizes=names(params@initial_n_pp) 
 n_pp_array <- array(NA, dim = c(length(times), length(sizes)), dimnames = list(time = times, w = sizes))
 
-for (i in 1:501) n_pp_array[i,] <- params@initial_n_pp 
+# keep constant
+
+#for (i in 1:501) n_pp_array[i,] <- params@initial_n_pp
+
+# add a slight amount of variation in intercept each timestep
+
+for (i in 1:501) n_pp_array[i,] <- params@initial_n_pp*runif(1,0.1,1.9)
+
 
 params@other_params$n_pp_array <- n_pp_array 
 
@@ -87,16 +94,21 @@ params@resource_dynamics <- "plankton_forcing"
 
 params <- setParams(params)
 
+#check
+# plot(params@w_full,params@other_params$n_pp_array[1,],log="xy",typ="l")
+# for (i in 2:501) points(params@w_full,params@other_params$n_pp_array[i,],typ="l",col="grey")
+
 ```
 
 
 ## Run project() using the newly set up parameters
 
 ```{r message=FALSE}
-### not sure why not working
+### need to check all OK
 
 sim2 <- project(params, dt = 0.1, t_max = 500, effort = 0) 
 plot(sim2)
+
 
 ```
 
