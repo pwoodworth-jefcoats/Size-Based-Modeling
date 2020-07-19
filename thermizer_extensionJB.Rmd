@@ -1,0 +1,216 @@
+---
+title: "therMizer extension"
+output:
+  html_document:
+    toc: yes
+    fig_width: 10
+    fig_height: 5
+---
+
+## Load libraries
+
+Mizer 2.0.1 updated at 23/05/2020 or later version is needed to use the background extension. 
+
+A. First and best option: download the most updated version of the package directly from GitHub using devtools::install_github("sizespectrum/mizer") 
+
+B. Second option: merge upstream master with your branch and upload code from local repository 
+
+```{r message=FALSE, warning=FALSE}
+
+rm(list=ls())
+
+# option A
+# devtools::install_github("sizespectrum/mizer") # run only once
+library(mizer)
+
+# option 2 
+# library(Jmisc)
+# path<-"/Users/nov017/R-projects/Mizer-trait/R"
+# sourceAll(path)
+
+```
+
+## Set up multispecies model
+
+All parameters are made up
+
+```{r message=FALSE, warning=FALSE}
+
+species_params = data.frame(species = c("speciesA", "speciesB"), w_inf = c(500, 5000), k_vb =c(0.8, 0.3), w_min = c(0.001, 0.001),beta=c(1000,100),sigma=c(3,3))
+
+# available PP to species 
+species_params$interaction_resource<-c(1,0.5)
+
+# create the param object
+# note: some def values are different from old mizer (e.g. kappa)
+params<-newMultispeciesParams(species_params, no_w = 200,kappa=0.0001)
+#params<- setParams(params,kappa=0.01) to change kappa independently of other parameters that use it
+# run projections:
+sim<-project(params, t_max = 500, effort = 0)
+plot(sim)
+
+```
+
+
+## Create parameters that are derived from user-input parameters
+
+### Plankton forcing through time
+
+We want to enable the background resource to change through time via external forcing files obtained form analysis of CMIP6 climate models. We have external code to create these estimates. So here the user will only need to alter how: kappa, lambda,  r_pp change through time.  For now, the background resourcse is only plankton but later this could type of forcing could also be used for the benthic resource or detritus.
+
+Let's start by having a look at how the resource is structured in params. Then we make up a time series of changing plankton parameters through time. For this to work in mizer it will need to have the same timesteps as rest of the model. Or should we use the resource_dynamics function?
+
+```{r}
+# try with Phoebe's pre-prepared n_pp
+
+##### set up new resource forcing "function" - just changes to different timeslot in the n_pp_array array
+
+plankton_state <- new.env(parent = emptyenv())
+plankton_state$time <- 1
+
+plankton_forcing <- function(params,dt=0.1,...) {
+    return(params@other_params$n_pp_array[plankton_state$time,])  
+    plankton_state$time <- plankton_state$time + 1
+   
+  }
+
+### set up array of n_pp - currently just intial values
+times=0:500
+sizes=names(params@initial_n_pp) 
+n_pp_array <- array(NA, dim = c(length(times), length(sizes)), dimnames = list(time = times, w = sizes))
+
+for (i in 1:501) n_pp_array[i,] <- params@initial_n_pp 
+
+params@other_params$n_pp_array <- n_pp_array 
+
+params@resource_dynamics <- "plankton_forcing"
+
+params <- setParams(params)
+
+```
+
+
+## Run project() using the newly set up parameters
+
+```{r message=FALSE}
+### not sure why not working
+
+sim2 <- project(params, dt = 0.1, t_max = 500, effort = 0) 
+plot(sim2)
+
+```
+
+
+
+## Create parameters that must be input by the user
+
+For each species in the model, users must input the minimum and maximum values of its thermal tolerance range.  These values are used to scale temperature effects to values ranging from 0 - 1. 
+
+```{r message=FALSE, warning=FALSE}
+
+params@species_params$temp_min <- c(15, 10)
+params@species_params$temp_max <- c(25, 20)
+
+```
+
+
+### Temperature processes and forcing
+
+To scale the effect of temperature on encounter rate to a value ranging from 0 - 1, it is necessary to divide by the maximum possible value for each species.  To scale the effect of temperature on metabolism to a value ranging form 0 - 1, it is necessary to subtract the minimum vaule for each species and then divide by the range.  This requires a bit of straightforward arithmetic, and users could do this on their end if they're so inclined.  These parameters handle the necessary arithmetic.
+
+```{r}
+
+params@species_params$encounter_scale <- rep(NA, length(params@species_params$temp_min))
+
+for (indv in seq(1:length(params@species_params$temp_min))){
+  
+			# Create a vector of all temperatures each species might encounter
+      temperature <- seq(params@species_params$temp_min[indv], params@species_params$temp_max[indv], by=0.1)
+      
+      # Find the maximum value of the unscaled effect of temperature on encounter rate for each species 
+			params@species_params$encounter_scale[indv] <- max((temperature) * (temperature - params@species_params$temp_min[indv]) * (params@species_params$temp_max[indv] - temperature))
+			
+			}
+
+# Determine the minimum, maximum, and range of value for the effect of temperature on metabolism
+    
+    min_metab_value <- (exp(25.22 - (0.63/((8.62e-5)*(273+params@species_params$temp_min)))))
+		max_metab_value <- (exp(25.22 - (0.63/((8.62e-5)*(273+params@species_params$temp_max)))))
+		
+		params@species_params$metab_min <- min_metab_value
+		params@species_params$metab_range <- max_metab_value - min_metab_value
+		
+```
+
+## Create an ocean_temp parameter
+
+```{r}
+
+other_params(params)$ocean_temp <- c(17,17)
+
+```
+
+## Create the new rate functions
+
+Temperature will be added to the fuctions to determine encounter rate and energy available for growth and reproduction.
+
+To scale encounter rate with temperature, we're essentially taking a temperature-depending proportion of the value calculated by the mizerEncounter function.  If species are at their thermal optimum, we take the full value.  Elsewhere in their thermal range, we take a proportion that goes to zero at the limits of species thermal tolerence.  
+
+```{r}
+
+therMizerEncounter <- function(params, n, n_pp, n_other, ...) {
+      
+      # Calculate unscaled temperature effect using a generic polynomial rate equation
+      unscaled_temp_effect <- (params@other_params$other$ocean_temp) * (params@other_params$other$ocean_temp - params@species_params$temp_min) * (params@species_params$temp_max - params@other_params$other$ocean_temp)
+      
+      # Scale using new parameter
+      scaled_temp_effect <- unscaled_temp_effect / params@species_params$encounter_scale
+      
+      # Calculate maximum possible encounter rate
+      max_encounter <- mizerEncounter(params, n = n, n_pp = n_pp, n_other = n_other, ...)
+      
+      # Apply temperature effect
+      return(max_encounter*scaled_temp_effect)
+      
+}
+
+```
+
+To calculate the effect of temperature on metabolim, we use an Arrhenius function to scale the cost of metabolism.  When species are at their thermal maximum, the cost of metabolism is at its maximum.  When species are at their thermal minimum, the cost of metabolism is at its minimum
+
+```{r}
+
+therMizerEReproAndGrowth <- function(params, n, n_pp, n_other, encounter,
+                                 feeding_level, ...) {
+
+    # Arrhenius equation
+    unscaled_temp_effect <- (exp(25.22 - (0.63/((8.62e-5)*(273+params@other_params$other$ocean_temp)))))
+      
+    # Arrhenius equation scaled to a value between 0 and 1
+		temp_effect_metabolism <- (unscaled_temp_effect - params@species_params$metab_min) / params@species_params$metab_range
+  
+		# Apply scaled Arrhenius value to metabolism
+    sweep((1 - feeding_level) * encounter, 1,
+               params@species_params$alpha, "*", check.margin = FALSE) - 
+        params@metab*temp_effect_metabolism
+}
+
+```
+
+## Update the functions 
+
+```{r}
+
+params <- setRateFunction(params, "Encounter", "therMizerEncounter")
+params <- setRateFunction(params, "EReproAndGrowth", "therMizerEReproAndGrowth")
+```
+
+## Run project() using the newly set up parameters
+
+```{r message=FALSE}
+
+sim2 <- project(params, t_max = 100, effort = 0,initial_n = sim@n[500,,],initial_n_pp = sim@n_pp[500,]) 
+plot(sim2)
+
+```
+
