@@ -36,17 +36,17 @@ All parameters are made up
 
 ```{r message=FALSE, warning=FALSE}
 
-species_params = data.frame(species = c("pelagic", "benthic"), w_inf = c(100, 200), k_vb =c(0.2, 0.2), w_min = c(0.001, 0.001))
+species_params = data.frame(species = c("speciesA", "speciesB"), w_inf = c(500, 5000), k_vb =c(0.8, 0.3), w_min = c(0.001, 0.001),beta=c(1000,100),sigma=c(3,3))
 
 # available PP to species 
-species_params$interaction_resource<-c(1,0.2)
+species_params$interaction_resource<-c(1,0.5)
 
 # create the param object
 # note: some def values are different from old mizer (e.g. kappa)
-params<-newMultispeciesParams(species_params, no_w = 200, kappa = 0.001)
+params<-newMultispeciesParams(species_params, no_w = 200,kappa=0.0001)
 
 # run projections:
-sim<-project(params, t_max = 100, effort = 0)
+sim<-project(params, t_max = 500, effort = 0)
 plot(sim)
 
 ```
@@ -64,7 +64,7 @@ params@species_params$temp_max <- c(25, 20)
 
 ## Create parameters that are derived from user-input parameters
 
-To scale the effect of temperature on encounter rate to a value ranging from 0 - 1, it is necessary to divide by the maximum possible value for each species.  To scale the effect of temperature on metabolism to a value ranging form 0 - 1, it is necessary to subtract the minimum vaule for each species and then divide by the range.  This requires a bit of straightforward arithmetic, and users could do this on their end if they're so inclined.  These parameters handle the necessary arithmetic.
+To scale the effect of temperature on encounter rate to a value ranging from 0 - 1, it is necessary to divide by the maximum possible value for each species.  To scale the effect of temperature on metabolism to a value ranging form 0 - 1, it is necessary to subtract the minimum vaule for each species and then divide by the range.  This requires a bit of straightforward arithmetic, and users could do this on their end if they're so inclined.  These parameters handle the necessary arithmetic so users don't have to.
 
 ```{r}
 
@@ -92,9 +92,23 @@ for (indv in seq(1:length(params@species_params$temp_min))){
 
 ## Create an ocean_temp parameter
 
+Here, we'll create arbitrary time series of increasing ocean temperature for each species.  Alternatively, and more probably, time series of temperature could be informed by past data or climate model output.
+
 ```{r}
 
-other_params(params)$ocean_temp <- c(17,17)
+# Create temperature array and fill it
+times <- 0:500
+species <- params@species_params$species
+ocean_temp_array <- array(NA, dim = c(length(times), length(species)), dimnames = list(time = times, sp = species))
+
+temp_inc <- 0
+for (i in 1:501){
+  ocean_temp_array[i,] <- c(17 + temp_inc, 17 + temp_inc)
+  temp_inc <- temp_inc + 0.01
+}
+
+# Add temperature as a parameter
+other_params(params)$ocean_temp <- ocean_temp_array
 
 ```
 
@@ -102,14 +116,17 @@ other_params(params)$ocean_temp <- c(17,17)
 
 Temperature will be added to the fuctions to determine encounter rate and energy available for growth and reproduction.
 
-To scale encounter rate with temperature, we're essentially taking a temperature-depending proportion of the value calculated by the mizerEncounter function.  If species are at their thermal optimum, we take the full value.  Elsewhere in their thermal range, we take a proportion that goes to zero at the limits of species thermal tolerence.  
+To scale encounter rate with temperature, we're essentially taking a temperature-dependent proportion of the value calculated by the mizerEncounter function.  If species are at their thermal optimum, we take the full value.  Elsewhere in their thermal range, we take a proportion that goes to zero at the limits of species thermal tolerence.  
 
 ```{r}
 
-therMizerEncounter <- function(params, n, n_pp, n_other, ...) {
+therMizerEncounter <- function(params, n, n_pp, n_other, t, ...) {
       
+      # Using t+1 to avoid calling ocean_temp[0,] at the first time step
+      temp_at_t <- params@other_params$other$ocean_temp[t+1,]
+  
       # Calculate unscaled temperature effect using a generic polynomial rate equation
-      unscaled_temp_effect <- (params@other_params$other$ocean_temp) * (params@other_params$other$ocean_temp - params@species_params$temp_min) * (params@species_params$temp_max - params@other_params$other$ocean_temp)
+      unscaled_temp_effect <- temp_at_t * (temp_at_t - params@species_params$temp_min) * (params@species_params$temp_max - temp_at_t)
       
       # Scale using new parameter
       scaled_temp_effect <- unscaled_temp_effect / params@species_params$encounter_scale
@@ -118,21 +135,25 @@ therMizerEncounter <- function(params, n, n_pp, n_other, ...) {
       max_encounter <- mizerEncounter(params, n = n, n_pp = n_pp, n_other = n_other, ...)
       
       # Apply temperature effect
+      # return(sweep(max_encounter, 1, scaled_temp_effect, '*', check.margin = FALSE))
       return(max_encounter*scaled_temp_effect)
       
 }
 
 ```
 
-To calculate the effect of temperature on metabolim, we use an Arrhenius function to scale the cost of metabolism.  When species are at their thermal maximum, the cost of metabolism is at its maximum.  When species are at their thermal minimum, the cost of metabolism is at its minimum
+To calculate the effect of temperature on metabolim, we use an Arrhenius function to scale the cost of metabolism.  When species are at their thermal maximum, the cost of metabolism is at its maximum.  When species are at their thermal minimum, the cost of metabolism is at its minimum.
 
 ```{r}
 
-therMizerEReproAndGrowth <- function(params, n, n_pp, n_other, encounter,
+therMizerEReproAndGrowth <- function(params, n, n_pp, n_other, t, encounter,
                                  feeding_level, ...) {
-
+    
+    # Using t+1 to avoid calling ocean_temp[0,] at the first time step
+    temp_at_t <- params@other_params$other$ocean_temp[t+1,]
+  
     # Arrhenius equation
-    unscaled_temp_effect <- (exp(25.22 - (0.63/((8.62e-5)*(273+params@other_params$other$ocean_temp)))))
+    unscaled_temp_effect <- (exp(25.22 - (0.63/((8.62e-5)*(273+temp_at_t)))))
       
     # Arrhenius equation scaled to a value between 0 and 1
 		temp_effect_metabolism <- (unscaled_temp_effect - params@species_params$metab_min) / params@species_params$metab_range
@@ -140,7 +161,8 @@ therMizerEReproAndGrowth <- function(params, n, n_pp, n_other, encounter,
 		# Apply scaled Arrhenius value to metabolism
     sweep((1 - feeding_level) * encounter, 1,
                params@species_params$alpha, "*", check.margin = FALSE) - 
-        params@metab*temp_effect_metabolism
+      params@metab*temp_effect_metabolism  
+      
 }
 
 ```
@@ -157,8 +179,11 @@ params <- setRateFunction(params, "EReproAndGrowth", "therMizerEReproAndGrowth")
 
 ```{r message=FALSE}
 
-sim2 <- project(params, t_max = 100, effort = 0) 
-plot(sim2)
+sim2 <- project(params, t_max = 500, effort = 0)
+
+# Note that when plotting, functions that call the now time varying rate functions will encounter an error.
+plotBiomass(sim2)
+plotSpectra(sim2)
 
 ```
 
