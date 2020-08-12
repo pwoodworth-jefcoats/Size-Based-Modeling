@@ -51,6 +51,50 @@ plot(sim)
 
 ```
 
+## Create parameters that are derived from user-input parameters
+
+### Plankton forcing through time
+
+We want to enable the background resource to change through time via external forcing files obtained form analysis of CMIP6 climate models. We have external code to create these estimates. So here the user will only need to alter how: kappa, lambda, r_pp change through time.  For now, the background resource is only plankton but later this could type of forcing could also be used for the benthic resource or detritus.
+
+Let's start by having a look at how the resource is structured in params. Then we make up a time series of changing plankton parameters through time. For this to work in mizer it will need to have the same timesteps as rest of the model. Or should we use the resource_dynamics function?
+
+```{r}
+# try with Phoebe's pre-prepared n_pp
+##### set up new resource forcing "function" - just changes to different timeslot in the n_pp_array array
+plankton_state <- new.env(parent = emptyenv())
+plankton_state$time <- 1
+plankton_forcing <- function(params,dt=0.1,...) {
+    return(params@other_params$n_pp_array[plankton_state$time,])  
+    plankton_state$time <- plankton_state$time + 1
+   
+  }
+### set up array of n_pp - currently just intial values
+times=0:500
+sizes=names(params@initial_n_pp) 
+n_pp_array <- array(NA, dim = c(length(times), length(sizes)), dimnames = list(time = times, w = sizes))
+# keep constant
+#for (i in 1:501) n_pp_array[i,] <- params@initial_n_pp
+# add a slight amount of variation in intercept each timestep
+for (i in 1:501) n_pp_array[i,] <- params@initial_n_pp*runif(1,0.1,1.9)
+params@other_params$n_pp_array <- n_pp_array 
+params@resource_dynamics <- "plankton_forcing"
+params <- setParams(params)
+#check
+# plot(params@w_full,params@other_params$n_pp_array[1,],log="xy",typ="l")
+# for (i in 2:501) points(params@w_full,params@other_params$n_pp_array[i,],typ="l",col="grey")
+```
+
+
+## Run project() using the newly set up parameters
+
+```{r message=FALSE}
+### need to check all OK
+sim2 <- project(params, dt = 0.1, t_max = 500, effort = 0) 
+plot(sim2)
+```
+
+
 ## Create parameters that must be input by the user
 
 For each species in the model, users must input the minimum and maximum values of its thermal tolerance range.  These values are used to scale temperature effects to values ranging from 0 - 1. 
