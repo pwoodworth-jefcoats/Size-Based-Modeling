@@ -175,6 +175,16 @@ therMizerEncounter <- function(params, n, n_pp, n_other, t, ...) {
       # Scale using new parameter
       scaled_temp_effect <- unscaled_temp_effect / params@species_params$encounter_scale
       
+      # Set the encounter rate to zero if temperature is outside species' thermal tolerance
+      above_max <- which(temp_at_t > params@species_params$temp_max)
+      below_min <- which(temp_at_t < params@species_params$temp_min)
+      
+      if(length(above_max) > 0)
+        scaled_temp_effect[above_max] = 0
+      
+      if(length(below_min) > 0)
+        scaled_temp_effect[below_min] = 0
+      
       # Calculate maximum possible encounter rate
       max_encounter <- mizerEncounter(params, n = n, n_pp = n_pp, n_other = n_other, ...)
       
@@ -201,11 +211,23 @@ therMizerEReproAndGrowth <- function(params, n, n_pp, n_other, t, encounter,
       
     # Arrhenius equation scaled to a value between 0 and 1
 		temp_effect_metabolism <- (unscaled_temp_effect - params@species_params$metab_min) / params@species_params$metab_range
+		
+		# Set the EReproAndGrowth to zero if temperature is outside species' thermal tolerance
+    Emultiplier <- rep(1, length(params@species_params$species))
+		
+		above_max <- which(temp_at_t > params@species_params$temp_max)
+    below_min <- which(temp_at_t < params@species_params$temp_min)
+    
+    if(length(above_max) > 0)
+      Emultiplier[above_max] = 0
+    
+    if(length(below_min) > 0)
+      Emultiplier[below_min] = 0
   
 		# Apply scaled Arrhenius value to metabolism
-    sweep((1 - feeding_level) * encounter, 1,
+    (sweep((1 - feeding_level) * encounter, 1,
                params@species_params$alpha, "*", check.margin = FALSE) - 
-      params@metab*temp_effect_metabolism  
+      params@metab*temp_effect_metabolism)*Emultiplier  
       
 }
 
