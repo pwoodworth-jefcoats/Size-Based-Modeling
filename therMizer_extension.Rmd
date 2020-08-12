@@ -223,11 +223,11 @@ params <- setRateFunction(params, "EReproAndGrowth", "therMizerEReproAndGrowth")
 
 ```{r message=FALSE}
 
-sim2 <- project(params, t_max = 500, effort = 0)
+sim3 <- project(params, t_max = 500, effort = 0)
 
 # Note that when plotting, functions that call the now time varying rate functions will encounter an error.
-plotBiomass(sim2)
-plotSpectra(sim2)
+plotBiomass(sim3)
+plotSpectra(sim3)
 
 ```
 
