@@ -108,7 +108,9 @@ params@species_params$temp_max <- c(25, 20)
 
 ## Create parameters that are derived from user-input parameters
 
-To scale the effect of temperature on encounter rate to a value ranging from 0 - 1, it is necessary to divide by the maximum possible value for each species.  To scale the effect of temperature on metabolism to a value ranging form 0 - 1, it is necessary to subtract the minimum vaule for each species and then divide by the range.  This requires a bit of straightforward arithmetic, and users could do this on their end if they're so inclined.  These parameters handle the necessary arithmetic so users don't have to.
+To scale the effect of temperature on encounter rate to a value ranging from 0 - 1, it is necessary to divide by the maximum possible value for each species.  To scale the effect of temperature on metabolism to a value ranging form 0 - 1, it is necessary to subtract the minimum vaule for each species and then divide by the range.  This requires a bit of straightforward arithmetic, and users could do this on their end if they're so inclined. hese parameters handle that math so the user doesn't have to.
+
+We're also going to create a parameter called `t_idx` that will help with the simulations.  This parameter will provide the correct time index for temperature during the simulations.
 
 ```{r}
 
@@ -116,22 +118,31 @@ params@species_params$encounter_scale <- rep(NA, length(params@species_params$te
 
 for (indv in seq(1:length(params@species_params$temp_min))){
   
-			# Create a vector of all temperatures each species might encounter
-      temperature <- seq(params@species_params$temp_min[indv], params@species_params$temp_max[indv], by=0.1)
-      
-      # Find the maximum value of the unscaled effect of temperature on encounter rate for each species 
-			params@species_params$encounter_scale[indv] <- max((temperature) * (temperature - params@species_params$temp_min[indv]) * (params@species_params$temp_max[indv] - temperature))
-			
-			}
+  # Create a vector of all temperatures each species might encounter
+  temperature <- seq(params@species_params$temp_min[indv], params@species_params$temp_max[indv], by=0.1)
+  
+  # Find the maximum value of the unscaled effect of temperature on encounter rate for each species 
+  params@species_params$encounter_scale[indv] <- max((temperature) * (temperature - params@species_params$temp_min[indv]) * (params@species_params$temp_max[indv] - temperature))
+  
+}
 
 # Determine the minimum, maximum, and range of value for the effect of temperature on metabolism
-    
-    min_metab_value <- (exp(25.22 - (0.63/((8.62e-5)*(273+params@species_params$temp_min)))))
-		max_metab_value <- (exp(25.22 - (0.63/((8.62e-5)*(273+params@species_params$temp_max)))))
-		
-		params@species_params$metab_min <- min_metab_value
-		params@species_params$metab_range <- max_metab_value - min_metab_value
-		
+min_metab_value <- (exp(25.22 - (0.63/((8.62e-5)*(273+params@species_params$temp_min)))))
+max_metab_value <- (exp(25.22 - (0.63/((8.62e-5)*(273+params@species_params$temp_max)))))
+
+params@species_params$metab_min <- min_metab_value
+params@species_params$metab_range <- max_metab_value - min_metab_value
+
+# Time indexing parameter
+# This will be added to t to convert the year into an index for the ocean_temp array
+if (min(times) == 0) {
+  other_params(params)$t_idx = 1
+} else if (min(times) == 1) {
+  other_params(params)$t_idx = 0
+} else {
+  other_params(params)$t_idx = -(min(times) - 1)
+}
+
 ```
 
 ## Create an ocean_temp parameter
@@ -165,33 +176,32 @@ To scale encounter rate with temperature, we're essentially taking a temperature
 ```{r}
 
 therMizerEncounter <- function(params, n, n_pp, n_other, t, ...) {
-      
-      # Using t+1 to avoid calling ocean_temp[0,] at the first time step
-      temp_at_t <- params@other_params$other$ocean_temp[t+1,]
   
-      # Calculate unscaled temperature effect using a generic polynomial rate equation
-      unscaled_temp_effect <- temp_at_t * (temp_at_t - params@species_params$temp_min) * (params@species_params$temp_max - temp_at_t)
-      
-      # Scale using new parameter
-      scaled_temp_effect <- unscaled_temp_effect / params@species_params$encounter_scale
-      
-      # Set the encounter rate to zero if temperature is outside species' thermal tolerance
-      above_max <- which(temp_at_t > params@species_params$temp_max)
-      below_min <- which(temp_at_t < params@species_params$temp_min)
-      
-      if(length(above_max) > 0)
-        scaled_temp_effect[above_max] = 0
-      
-      if(length(below_min) > 0)
-        scaled_temp_effect[below_min] = 0
-      
-      # Calculate maximum possible encounter rate
-      max_encounter <- mizerEncounter(params, n = n, n_pp = n_pp, n_other = n_other, ...)
-      
-      # Apply temperature effect
-      # return(sweep(max_encounter, 1, scaled_temp_effect, '*', check.margin = FALSE))
-      return(max_encounter*scaled_temp_effect)
-      
+  # Using t+1 to avoid calling ocean_temp[0,] at the first time step
+  temp_at_t <- params@other_params$other$ocean_temp[t + params@other_params$other$t_idx,]
+  
+  # Calculate unscaled temperature effect using a generic polynomial rate equation
+  unscaled_temp_effect <- temp_at_t * (temp_at_t - params@species_params$temp_min) * (params@species_params$temp_max - temp_at_t)
+  
+  # Scale using new parameter
+  scaled_temp_effect <- unscaled_temp_effect / params@species_params$encounter_scale
+  
+  # Set the encounter rate to zero if temperature is outside species' thermal tolerance
+  above_max <- which(temp_at_t > params@species_params$temp_max)
+  below_min <- which(temp_at_t < params@species_params$temp_min)
+  
+  if(length(above_max) > 0)
+    scaled_temp_effect[above_max] = 0
+  
+  if(length(below_min) > 0)
+    scaled_temp_effect[below_min] = 0
+  
+  # Calculate maximum possible encounter rate
+  max_encounter <- mizerEncounter(params, n = n, n_pp = n_pp, n_other = n_other, ...)
+  
+  # Apply temperature effect
+  return(max_encounter*scaled_temp_effect)
+  
 }
 
 ```
@@ -202,30 +212,30 @@ To calculate the effect of temperature on metabolim, we use an Arrhenius functio
 
 therMizerEReproAndGrowth <- function(params, n, n_pp, n_other, t, encounter,
                                  feeding_level, ...) {
-    
-    # Using t+1 to avoid calling ocean_temp[0,] at the first time step
-    temp_at_t <- params@other_params$other$ocean_temp[t+1,]
   
-    # Arrhenius equation
-    unscaled_temp_effect <- (exp(25.22 - (0.63/((8.62e-5)*(273+temp_at_t)))))
-      
-    # Arrhenius equation scaled to a value between 0 and 1
-		temp_effect_metabolism <- (unscaled_temp_effect - params@species_params$metab_min) / params@species_params$metab_range
-		
-		# Set the EReproAndGrowth to zero if temperature is outside species' thermal tolerance
-    Emultiplier <- rep(1, length(params@species_params$species))
-		
-		above_max <- which(temp_at_t > params@species_params$temp_max)
-    below_min <- which(temp_at_t < params@species_params$temp_min)
-    
-    if(length(above_max) > 0)
-      Emultiplier[above_max] = 0
-    
-    if(length(below_min) > 0)
-      Emultiplier[below_min] = 0
+  # Using t+1 to avoid calling ocean_temp[0,] at the first time step
+  temp_at_t <- params@other_params$other$ocean_temp[t + params@other_params$other$t_idx,]
   
-		# Apply scaled Arrhenius value to metabolism
-    (sweep((1 - feeding_level) * encounter, 1,
+  # Arrhenius equation
+  unscaled_temp_effect <- (exp(25.22 - (0.63/((8.62e-5)*(273+temp_at_t)))))
+  
+  # Arrhenius equation scaled to a value between 0 and 1
+  temp_effect_metabolism <- (unscaled_temp_effect - params@species_params$metab_min) / params@species_params$metab_range
+  
+  # Set the EReproAndGrowth to zero if temperature is outside species' thermal tolerance
+  Emultiplier <- rep(1, length(params@species_params$species))
+  
+  above_max <- which(temp_at_t > params@species_params$temp_max)
+  below_min <- which(temp_at_t < params@species_params$temp_min)
+  
+  if(length(above_max) > 0)
+    Emultiplier[above_max] = 0
+  
+  if(length(below_min) > 0)
+    Emultiplier[below_min] = 0
+  
+  # Apply scaled Arrhenius value to metabolism
+  (sweep((1 - feeding_level) * encounter, 1,
                params@species_params$alpha, "*", check.margin = FALSE) - 
       params@metab*temp_effect_metabolism)*Emultiplier  
       
@@ -239,6 +249,7 @@ therMizerEReproAndGrowth <- function(params, n, n_pp, n_other, t, encounter,
 
 params <- setRateFunction(params, "Encounter", "therMizerEncounter")
 params <- setRateFunction(params, "EReproAndGrowth", "therMizerEReproAndGrowth")
+
 ```
 
 ## Run project() using the newly set up parameters
