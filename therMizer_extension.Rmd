@@ -9,7 +9,7 @@ output:
 
 ## Load libraries
 
-Mizer 2.0.1 updated at 23/05/2020 or later version is needed to use the background extension. 
+Mizer 2.0.3 or later version is needed to use the background extension. 
 
 A. First and best option: download the most updated version of the package directly from GitHub using devtools::install_github("sizespectrum/mizer") 
 
@@ -158,7 +158,7 @@ ocean_temp_array <- array(NA, dim = c(length(times), length(species)), dimnames 
 
 temp_inc <- 0
 for (i in 1:501){
-  ocean_temp_array[i,] <- c(17 + temp_inc, 17 + temp_inc)
+  ocean_temp_array[i,] <- c(17 + temp_inc)
   temp_inc <- temp_inc + 0.01
 }
 
@@ -257,10 +257,7 @@ params <- setRateFunction(params, "EReproAndGrowth", "therMizerEReproAndGrowth")
 ```{r message=FALSE}
 
 sim3 <- project(params, t_max = 500, effort = 0)
-
-# Note that when plotting, functions that call the now time varying rate functions will encounter an error.
-plotBiomass(sim3)
-plotSpectra(sim3)
+plot(sim3)
 
 ```
 
