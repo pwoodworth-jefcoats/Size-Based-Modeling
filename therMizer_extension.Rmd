@@ -195,25 +195,14 @@ therMizerEncounter <- function(params, t, ...) {
       
 }
 
-therMizerPredMort <- function(params, t, ...) {
+therMizerPredRate <- function(params, t, ...) {
 
       # Calculate maximum possible encounter rate
-      max_predmort <- mizerPredMort(params, t, ...)
+      max_predrate <- mizerPredRate(params, t, ...)
       
       # Apply temperature effect
-      # return(sweep(max_predmort, 1, scaled_temp_effect, '*', check.margin = FALSE))
-      return(max_predmort * scaled_temp_effect(t))
-      
-}
-
-therMizerResourceMort <- function(params, t, ...) {
-      
-      # Calculate maximum possible encounter rate
-      max_resourcemort <- mizerResourceMort(params, t, ...)
-      
-      # Apply temperature effect
-      # return(sweep(max_resourcemort, 1, scaled_temp_effect, '*', check.margin = FALSE))
-      return(max_resourcemort * scaled_temp_effect(t))
+      # return(sweep(max_predrate, 1, scaled_temp_effect, '*', check.margin = FALSE))
+      return(max_predrate * scaled_temp_effect(t))
       
 }
 
@@ -254,8 +243,7 @@ therMizerEReproAndGrowth <- function(params, t, encounter, feeding_level, ...) {
 ```{r}
 
 params <- setRateFunction(params, "Encounter", "therMizerEncounter")
-params <- setRateFunction(params, "PredMort", "therMizerPredMort")
-params <- setRateFunction(params, "ResourceMort", "therMizerResourceMort")
+params <- setRateFunction(params, "PredRate", "therMizerPredRate")
 params <- setRateFunction(params, "EReproAndGrowth", "therMizerEReproAndGrowth")
 ```
 
