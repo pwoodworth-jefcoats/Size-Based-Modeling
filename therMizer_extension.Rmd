@@ -188,10 +188,10 @@ scaled_temp_effect <- function(t) {
     scaled_temp_effect
 }
 
-therMizerEncounter <- function(params, n, n_pp, n_other, t, ...) {
+therMizerEncounter <- function(params, t, ...) {
     
       # Calculate maximum possible encounter rate
-      max_encounter <- mizerEncounter(params, n = n, n_pp = n_pp, n_other = n_other, t, ...)
+      max_encounter <- mizerEncounter(params, t, ...)
       
       # Apply temperature effect
       # return(sweep(max_encounter, 1, scaled_temp_effect, '*', check.margin = FALSE))
@@ -199,10 +199,10 @@ therMizerEncounter <- function(params, n, n_pp, n_other, t, ...) {
       
 }
 
-therMizerPredMort <- function(params, n, n_pp, n_other, t, ...) {
+therMizerPredMort <- function(params, t, ...) {
 
       # Calculate maximum possible encounter rate
-      max_predmort <- mizerPredMort(params, n = n, n_pp = n_pp, n_other = n_other, t, ...)
+      max_predmort <- mizerPredMort(params, t, ...)
       
       # Apply temperature effect
       # return(sweep(max_predmort, 1, scaled_temp_effect, '*', check.margin = FALSE))
@@ -210,10 +210,10 @@ therMizerPredMort <- function(params, n, n_pp, n_other, t, ...) {
       
 }
 
-therMizerResourceMort <- function(params, n, n_pp, n_other, t, ...) {
+therMizerResourceMort <- function(params, t, ...) {
       
       # Calculate maximum possible encounter rate
-      max_resourcemort <- mizerResourceMort(params, n = n, n_pp = n_pp, n_other = n_other, t, ...)
+      max_resourcemort <- mizerResourceMort(params, t, ...)
       
       # Apply temperature effect
       # return(sweep(max_resourcemort, 1, scaled_temp_effect, '*', check.margin = FALSE))
@@ -227,8 +227,7 @@ To calculate the effect of temperature on metabolism, we use an Arrhenius functi
 
 ```{r}
 
-therMizerEReproAndGrowth <- function(params, n, n_pp, n_other, t, encounter,
-                                 feeding_level, ...) {
+therMizerEReproAndGrowth <- function(params, t, encounter, feeding_level, ...) {
     
     # Using t+1 to avoid calling ocean_temp[0,] at the first time step
     temp_at_t <- other_params(params)$ocean_temp[t + 1,]
