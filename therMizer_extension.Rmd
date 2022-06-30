@@ -176,14 +176,10 @@ scaled_temp_effect <- function(t) {
     scaled_temp_effect <- unscaled_temp_effect / species_params(params)$encounterpred_scale
     
     # Set temperature effect to 0 if temperatures are outside thermal tolerance limits
-    above_max <- which(temp_at_t > species_params(params)$temp_max) 
-    below_min <- which(temp_at_t < species_params(params)$temp_min) 
+    above_max <- temp_at_t > species_params(params)$temp_max
+    below_min <- temp_at_t < species_params(params)$temp_min
     
-    if (length(above_max) > 0) 
-        scaled_temp_effect[above_max] = 0
-    
-    if (length(below_min) > 0) 
-        scaled_temp_effect[below_min] = 0 
+    scaled_temp_effect[above_max | below_min] = 0
     
     scaled_temp_effect
 }
@@ -239,14 +235,10 @@ therMizerEReproAndGrowth <- function(params, t, encounter, feeding_level, ...) {
 		temp_effect_metabolism <- (unscaled_temp_effect - species_params(params)$metab_min) / species_params(params)$metab_range
 		
 		# Set temperature effect to 0 if temperatures are outside thermal tolerance limits
-    above_max <- which(temp_at_t > species_params(params)$temp_max) 
-    below_min <- which(temp_at_t < species_params(params)$temp_min) 
+    above_max <- temp_at_t > species_params(params)$temp_max
+    below_min <- temp_at_t < species_params(params)$temp_min
     
-    if (length(above_max) > 0) 
-      temp_effect_metabolism[above_max] = 0
-    
-    if (length(below_min) > 0) 
-      temp_effect_metabolism[below_min] = 0
+    temp_effect_metabolism[above_max | below_min] = 0
   
 		# Apply scaled Arrhenius value to metabolism
     sweep((1 - feeding_level) * encounter, 1,
