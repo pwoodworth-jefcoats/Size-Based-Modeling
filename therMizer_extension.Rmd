@@ -43,7 +43,8 @@ species_params$interaction_resource <- c(1,0.5)
 
 # create the param object
 # note: some def values are different from old mizer (e.g. kappa)
-params <- newMultispeciesParams(species_params, no_w = 200, kappa = 0.0001)
+params <- newMultispeciesParams(species_params, no_w = 200, kappa = 0.0001) |>
+    steady(tol = 0.001)
 
 # run projections:
 sim <- project(params, t_max = 500, effort = 0)
