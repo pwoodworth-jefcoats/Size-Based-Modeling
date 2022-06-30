@@ -43,7 +43,8 @@ species_params$interaction_resource <- c(1,0.5)
 
 # create the param object
 # note: some def values are different from old mizer (e.g. kappa)
-params <- newMultispeciesParams(species_params, no_w = 200, kappa = 0.0001)
+params <- newMultispeciesParams(species_params, no_w = 200, kappa = 0.0001) |>
+    steady(tol = 0.001)
 
 # run projections:
 sim <- project(params, t_max = 500, effort = 0)
@@ -161,93 +162,48 @@ To scale encounter rate and predation mortality with temperature, we're essentia
 
 ```{r}
 
-therMizerEncounter <- function(params, n, n_pp, n_other, t, ...) {
-      
-      # Using t+1 to avoid calling ocean_temp[0,] at the first time step
-      temp_at_t <- other_params(params)$ocean_temp[t + 1,]
-  
-      # Calculate unscaled temperature effect using a generic polynomial rate equation
-      unscaled_temp_effect <- temp_at_t * (temp_at_t - species_params(params)$temp_min) * (species_params(params)$temp_max - temp_at_t)
-      
-      # Scale using new parameter
-      scaled_temp_effect <- unscaled_temp_effect / species_params(params)$encounterpred_scale
-      
-      # Set temperature effect to 0 if temperatures are outside thermal tolerance limits
-      above_max <- which(temp_at_t > species_params(params)$temp_max) 
-      below_min <- which(temp_at_t < species_params(params)$temp_min) 
-      
-      if (length(above_max) > 0) 
-        scaled_temp_effect[above_max] = 0
-      
-      if (length(below_min) > 0) 
-        scaled_temp_effect[below_min] = 0 
-      
+# Calculate the temperature scaling factor for the encounter rate, 
+# predation mortality rate and resource mortality rate
+scaled_temp_effect <- function(t) {
+    # Using t+1 to avoid calling ocean_temp[0,] at the first time step
+    temp_at_t <- other_params(params)$ocean_temp[t + 1,]
+    
+    # Calculate unscaled temperature effect using a generic polynomial rate equation
+    unscaled_temp_effect <- 
+        temp_at_t * (temp_at_t - species_params(params)$temp_min) * 
+        (species_params(params)$temp_max - temp_at_t)
+    
+    # Scale using new parameter
+    scaled_temp_effect <- unscaled_temp_effect / species_params(params)$encounterpred_scale
+    
+    # Set temperature effect to 0 if temperatures are outside thermal tolerance limits
+    above_max <- temp_at_t > species_params(params)$temp_max
+    below_min <- temp_at_t < species_params(params)$temp_min
+    
+    scaled_temp_effect[above_max | below_min] = 0
+    
+    scaled_temp_effect
+}
+
+therMizerEncounter <- function(params, t, ...) {
+    
       # Calculate maximum possible encounter rate
-      max_encounter <- mizerEncounter(params, n = n, n_pp = n_pp, n_other = n_other, ...)
+      max_encounter <- mizerEncounter(params, t, ...)
       
       # Apply temperature effect
       # return(sweep(max_encounter, 1, scaled_temp_effect, '*', check.margin = FALSE))
-      return(max_encounter * scaled_temp_effect)
+      return(max_encounter * scaled_temp_effect(t))
       
 }
 
-therMizerPredMort <- function(params, n, n_pp, n_other, t, ...) {
-      
-      # Using t+1 to avoid calling ocean_temp[0,] at the first time step
-      temp_at_t <- other_params(params)$ocean_temp[t + 1,]
-  
-      # Calculate unscaled temperature effect using a generic polynomial rate equation
-      unscaled_temp_effect <- temp_at_t * (temp_at_t - species_params(params)$temp_min) * (species_params(params)$temp_max - temp_at_t)
-      
-      # Scale using new parameter
-      scaled_temp_effect <- unscaled_temp_effect / species_params(params)$encounterpred_scale
-      
-      # Set temperature effect to 0 if temperatures are outside thermal tolerance limits
-      above_max <- which(temp_at_t > species_params(params)$temp_max) 
-      below_min <- which(temp_at_t < species_params(params)$temp_min) 
-      
-      if (length(above_max) > 0) 
-        scaled_temp_effect[above_max] = 0
-      
-      if (length(below_min) > 0) 
-        scaled_temp_effect[below_min] = 0 
+therMizerPredRate <- function(params, t, ...) {
 
       # Calculate maximum possible encounter rate
-      max_predmort <- mizerPredMort(params, n = n, n_pp = n_pp, n_other = n_other, ...)
+      max_predrate <- mizerPredRate(params, t, ...)
       
       # Apply temperature effect
-      # return(sweep(max_predmort, 1, scaled_temp_effect, '*', check.margin = FALSE))
-      return(max_predmort * scaled_temp_effect)
-      
-}
-
-therMizerResourceMort <- function(params, n, n_pp, n_other, t, ...) {
-      
-      # Using t+1 to avoid calling ocean_temp[0,] at the first time step
-      temp_at_t <- other_params(params)$ocean_temp[t + 1,]
-  
-      # Calculate unscaled temperature effect using a generic polynomial rate equation
-      unscaled_temp_effect <- temp_at_t * (temp_at_t - species_params(params)$temp_min) * (species_params(params)$temp_max - temp_at_t)
-      
-      # Scale using new parameter
-      scaled_temp_effect <- unscaled_temp_effect / species_params(params)$encounterpred_scale
-      
-       # Set temperature effect to 0 if temperatures are outside thermal tolerance limits
-      above_max <- which(temp_at_t > species_params(params)$temp_max) 
-      below_min <- which(temp_at_t < species_params(params)$temp_min) 
-      
-      if (length(above_max) > 0) 
-        scaled_temp_effect[above_max] = 0
-      
-      if (length(below_min) > 0) 
-        scaled_temp_effect[below_min] = 0 
-      
-      # Calculate maximum possible encounter rate
-      max_resourcemort <- mizerResourceMort(params, n = n, n_pp = n_pp, n_other = n_other, ...)
-      
-      # Apply temperature effect
-      # return(sweep(max_resourcemort, 1, scaled_temp_effect, '*', check.margin = FALSE))
-      return(max_resourcemort * scaled_temp_effect)
+      # return(sweep(max_predrate, 1, scaled_temp_effect, '*', check.margin = FALSE))
+      return(max_predrate * scaled_temp_effect(t))
       
 }
 
@@ -257,8 +213,7 @@ To calculate the effect of temperature on metabolism, we use an Arrhenius functi
 
 ```{r}
 
-therMizerEReproAndGrowth <- function(params, n, n_pp, n_other, t, encounter,
-                                 feeding_level, ...) {
+therMizerEReproAndGrowth <- function(params, t, encounter, feeding_level, ...) {
     
     # Using t+1 to avoid calling ocean_temp[0,] at the first time step
     temp_at_t <- other_params(params)$ocean_temp[t + 1,]
@@ -270,14 +225,10 @@ therMizerEReproAndGrowth <- function(params, n, n_pp, n_other, t, encounter,
 		temp_effect_metabolism <- (unscaled_temp_effect - species_params(params)$metab_min) / species_params(params)$metab_range
 		
 		# Set temperature effect to 0 if temperatures are outside thermal tolerance limits
-    above_max <- which(temp_at_t > species_params(params)$temp_max) 
-    below_min <- which(temp_at_t < species_params(params)$temp_min) 
+    above_max <- temp_at_t > species_params(params)$temp_max
+    below_min <- temp_at_t < species_params(params)$temp_min
     
-    if (length(above_max) > 0) 
-      temp_effect_metabolism[above_max] = 0
-    
-    if (length(below_min) > 0) 
-      temp_effect_metabolism[below_min] = 0
+    temp_effect_metabolism[above_max | below_min] = 0
   
 		# Apply scaled Arrhenius value to metabolism
     sweep((1 - feeding_level) * encounter, 1,
@@ -293,8 +244,7 @@ therMizerEReproAndGrowth <- function(params, n, n_pp, n_other, t, encounter,
 ```{r}
 
 params <- setRateFunction(params, "Encounter", "therMizerEncounter")
-params <- setRateFunction(params, "PredMort", "therMizerPredMort")
-params <- setRateFunction(params, "ResourceMort", "therMizerResourceMort")
+params <- setRateFunction(params, "PredRate", "therMizerPredRate")
 params <- setRateFunction(params, "EReproAndGrowth", "therMizerEReproAndGrowth")
 ```
 
